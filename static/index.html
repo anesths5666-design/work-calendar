@@ -48,7 +48,7 @@
   .badge-pending { background: #FBEFD2; color: #9A6B14; }
   .badge-approved { background: #E4EED6; color: #4F6B2E; }
   .badge-rejected { background: #F6DEDA; color: #97382E; }
-  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); margin-top: 12px; justify-content: center; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); margin-top: 12px; justify-content: center; flex-wrap: wrap; }
   .legend span { display: flex; align-items: center; gap: 5px; }
   .legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
   .notif-count { background: var(--red); color: #fff; border-radius: 20px; font-size: 13px; padding: 1px 9px; margin-left: 6px; }
@@ -64,6 +64,16 @@
   .day-detail:empty { display: none; }
   .hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 12px; }
   .add-box { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .sched { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .sched th, .sched td { border: 1px solid var(--border); padding: 6px 4px; text-align: center; vertical-align: top; }
+  .sched th { background: #FAF6EF; color: var(--muted); font-weight: 600; }
+  .sched .name-col { text-align: left; white-space: nowrap; }
+  .sched td.absent { background: #FBEAE7; }
+  .cell-absent { color: #97382E; font-size: 11px; font-weight: 600; }
+  .shift-pill { display: inline-flex; align-items: center; gap: 5px; background: #E4EED6; color: #4F6B2E; border-radius: 8px; padding: 2px 7px; font-size: 11px; margin: 1px; white-space: nowrap; }
+  .shift-pill .x { cursor: pointer; color: #97382E; font-weight: 700; }
+  .add-shift { cursor: pointer; color: var(--orange-dark); font-size: 11px; margin-top: 3px; }
+  .add-shift:hover { text-decoration: underline; }
   .hidden { display: none; }
 </style>
 </head>
@@ -126,6 +136,22 @@
         <div id="dayDetail" class="day-detail"></div>
       </div>
       <div class="card">
+        <h3>📅 Πρόγραμμα δουλειάς</h3>
+        <div class="cal-head">
+          <button class="cal-nav" onclick="changeWeek(-1)">‹</button>
+          <span class="month" id="weekLabel"></span>
+          <button class="cal-nav" onclick="changeWeek(1)">›</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="sched" id="scheduleTable"></table>
+        </div>
+        <div class="legend">
+          <span><span class="dot dot-approved"></span> Δουλεύει</span>
+          <span><span class="dot dot-rejected"></span> Λείπει</span>
+        </div>
+        <div class="hint">Κλικ στο «+ βάρδια» για ώρες · στο × για αφαίρεση · σπαστό = δύο βάρδιες ίδια μέρα</div>
+      </div>
+      <div class="card">
         <h3>📊 Σύνοψη απουσιών</h3>
         <div id="statsList"></div>
       </div>
@@ -148,9 +174,12 @@
 const DOW = ["Δε","Τρ","Τε","Πε","Πα","Σα","Κυ"];
 const MONTHS = ["Ιανουάριος","Φεβρουάριος","Μάρτιος","Απρίλιος","Μάιος","Ιούνιος",
                 "Ιούλιος","Αύγουστος","Σεπτέμβριος","Οκτώβριος","Νοέμβριος","Δεκέμβριος"];
+const SHORTMONTH = ["Ιαν","Φεβ","Μαρ","Απρ","Μάι","Ιουν","Ιουλ","Αυγ","Σεπ","Οκτ","Νοε","Δεκ"];
 const LABELS = { pending: "Σε αναμονή", approved: "Εγκρίθηκε", rejected: "Απορρίφθηκε" };
 let token = null, role = null, viewDate = new Date();
-let myAbsences = [], allAbsences = [], notifications = [];
+let myAbsences = [], allAbsences = [], notifications = [], allShifts = [], employeesList = [];
+function getMonday(d){ const x=new Date(d); const day=x.getDay(); const diff=day===0?-6:1-day; x.setDate(x.getDate()+diff); x.setHours(0,0,0,0); return x; }
+let weekStart = getMonday(new Date());
 
 async function api(path, options = {}) {
   options.headers = options.headers || {};
@@ -189,6 +218,10 @@ function changeMonth(delta) {
   viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1);
   if (role === "employee") renderEmpCalendar();
   else if (role === "admin") renderAdminCalendar();
+}
+function changeWeek(delta) {
+  weekStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + delta*7);
+  renderSchedule();
 }
 function ymd(d) {
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
@@ -249,8 +282,11 @@ function renderEmpList() {
 async function loadAdmin() {
   notifications = await (await api("/admin/notifications")).json();
   allAbsences = await (await api("/admin/absences")).json();
-  renderNotifications(); renderAdminCalendar();
-  loadStats(); loadEmployees();
+  allShifts = await (await api("/admin/shifts")).json();
+  employeesList = await (await api("/admin/employees")).json();
+  const stats = await (await api("/admin/stats")).json();
+  renderNotifications(); renderAdminCalendar(); renderSchedule();
+  renderStats(stats); renderEmployeesList();
 }
 function renderNotifications() {
   const list = document.getElementById("notifList"), count = document.getElementById("notifCount");
@@ -299,8 +335,54 @@ function showDay(dateStr, dayList) {
   }
   document.getElementById("dayDetail").innerHTML = html;
 }
-async function loadStats() {
-  const stats = await (await api("/admin/stats")).json();
+function renderSchedule() {
+  const days = []; for (let i=0;i<7;i++){ const d=new Date(weekStart); d.setDate(weekStart.getDate()+i); days.push(d); }
+  document.getElementById("weekLabel").textContent =
+    "Εβδομάδα " + days[0].getDate() + " " + SHORTMONTH[days[0].getMonth()] +
+    " – " + days[6].getDate() + " " + SHORTMONTH[days[6].getMonth()] + " " + days[6].getFullYear();
+  const absentSet = {}; for (const a of allAbsences) absentSet[a.employee + "|" + a.absence_date] = true;
+  const shiftMap = {}; for (const s of allShifts) { const k = s.user_id + "|" + s.shift_date; (shiftMap[k] = shiftMap[k] || []).push(s); }
+  let html = "<thead><tr><th class='name-col'>Υπάλληλος</th>";
+  for (let i=0;i<7;i++){ html += `<th>${DOW[i]}<br><span style="color:var(--muted);font-weight:400;">${days[i].getDate()}</span></th>`; }
+  html += "</tr></thead><tbody>";
+  if (employeesList.length === 0) {
+    html += `<tr><td class='name-col' colspan="8" style="color:#9A8F82;text-align:center;">Δεν υπάρχουν υπάλληλοι ακόμα.</td></tr>`;
+  }
+  for (const e of employeesList) {
+    html += `<tr><td class='name-col'>${e.full_name}</td>`;
+    for (let i=0;i<7;i++){
+      const dateStr = ymd(days[i]);
+      if (absentSet[e.full_name + "|" + dateStr]) {
+        html += `<td class='absent'><span class='cell-absent'>Λείπει</span></td>`;
+      } else {
+        let cell = "";
+        const shifts = shiftMap[e.id + "|" + dateStr] || [];
+        for (const s of shifts) {
+          cell += `<div class='shift-pill'>${s.start_time}–${s.end_time} <span class='x' onclick="removeShift(${s.id})">×</span></div>`;
+        }
+        cell += `<div class='add-shift' onclick="addShift(${e.id}, '${dateStr}')">+ βάρδια</div>`;
+        html += `<td>${cell}</td>`;
+      }
+    }
+    html += "</tr>";
+  }
+  html += "</tbody>";
+  document.getElementById("scheduleTable").innerHTML = html;
+}
+async function addShift(userId, dateStr) {
+  const start = prompt("Ώρα έναρξης (π.χ. 09:00):", "09:00");
+  if (start === null) return;
+  const end = prompt("Ώρα λήξης (π.χ. 17:00):", "17:00");
+  if (end === null) return;
+  const res = await api("/admin/shifts", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, shift_date: dateStr, start_time: start, end_time: end }) });
+  if (res.ok) loadAdmin();
+}
+async function removeShift(id) {
+  const res = await api("/admin/shifts/" + id, { method: "DELETE" });
+  if (res.ok) loadAdmin();
+}
+function renderStats(stats) {
   const el = document.getElementById("statsList");
   if (!stats.length) { el.innerHTML = '<p style="color:#9A8F82;">Δεν υπάρχουν υπάλληλοι.</p>'; return; }
   el.innerHTML = "";
@@ -314,12 +396,11 @@ async function loadStats() {
     el.appendChild(row);
   }
 }
-async function loadEmployees() {
-  const emps = await (await api("/admin/employees")).json();
+function renderEmployeesList() {
   const el = document.getElementById("empMgrList");
-  if (!emps.length) { el.innerHTML = '<p style="color:#9A8F82;">Δεν υπάρχουν υπάλληλοι ακόμα.</p>'; return; }
+  if (!employeesList.length) { el.innerHTML = '<p style="color:#9A8F82;">Δεν υπάρχουν υπάλληλοι ακόμα.</p>'; return; }
   el.innerHTML = "";
-  for (const e of emps) {
+  for (const e of employeesList) {
     const row = document.createElement("div"); row.className = "abs-item";
     row.innerHTML = `<div><strong>${e.full_name}</strong> <span style="color:#9A8F82;">(${e.username})</span></div>
       <button class="btn-sm btn-reject" onclick="deleteEmployee(${e.id}, '${e.full_name}')">Διαγραφή</button>`;
@@ -345,7 +426,7 @@ async function createEmployeeUI() {
     document.getElementById("newFullName").value = "";
     document.getElementById("newUsername").value = "";
     document.getElementById("newPassword").value = "";
-    loadEmployees(); loadStats();
+    loadAdmin();
   } else { msg.style.color = "#D9776C"; msg.textContent = data.detail; }
 }
 </script>
