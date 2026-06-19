@@ -16,3 +16,10 @@ class Absence(SQLModel, table=True):
     status: str = "pending"
     seen_by_admin: bool = False
     created_at: datetime = Field(default_factory=datetime.now)
+
+class Shift(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    shift_date: date
+    start_time: str 
+    end_time: str

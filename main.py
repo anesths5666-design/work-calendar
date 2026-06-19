@@ -5,7 +5,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlmodel import Session, select, SQLModel
 from database import create_db_and_tables, get_session, engine
-from models import User, Absence
+from models import User, Absence, Shift
 from auth import hash_password, verify_password, create_token, decode_token
 
 # ---- Σχήματα αιτημάτων (όλα στην κορυφή) ----
@@ -228,5 +228,62 @@ def delete_employee(employee_id: int,
     session.delete(employee)
     session.commit()
     return {"message": f"Ο υπάλληλος {employee.full_name} διαγράφηκε"}
+
+# ---- Schema για βάρδια ----
+class ShiftRequest(SQLModel):
+    user_id: int
+    shift_date: date
+    start_time: str
+    end_time: str
+
+# ---- Admin: ορίζει βάρδια ----
+@app.post("/admin/shifts")
+def create_shift(req: ShiftRequest,
+                 admin: User = Depends(get_current_admin),
+                 session: Session = Depends(get_session)):
+    shift = Shift(user_id=req.user_id, shift_date=req.shift_date,
+                  start_time=req.start_time, end_time=req.end_time)
+    session.add(shift)
+    session.commit()
+    session.refresh(shift)
+    return shift
+
+# ---- Admin: όλες οι βάρδιες (με ονόματα) ----
+@app.get("/admin/shifts")
+def all_shifts(admin: User = Depends(get_current_admin),
+               session: Session = Depends(get_session)):
+    shifts = session.exec(select(Shift).order_by(Shift.shift_date)).all()
+    result = []
+    for s in shifts:
+        employee = session.get(User, s.user_id)
+        result.append({
+            "id": s.id,
+            "user_id": s.user_id,
+            "employee": employee.full_name if employee else "—",
+            "shift_date": s.shift_date,
+            "start_time": s.start_time,
+            "end_time": s.end_time,
+        })
+    return result
+
+# ---- Admin: σβήνει βάρδια ----
+@app.delete("/admin/shifts/{shift_id}")
+def delete_shift(shift_id: int,
+                 admin: User = Depends(get_current_admin),
+                 session: Session = Depends(get_session)):
+    shift = session.get(Shift, shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Η βάρδια δεν βρέθηκε")
+    session.delete(shift)
+    session.commit()
+    return {"message": "Η βάρδια διαγράφηκε"}
+
+# ---- Υπάλληλος: βλέπει τις δικές του βάρδιες ----
+@app.get("/shifts")
+def my_shifts(current_user: User = Depends(get_current_user),
+              session: Session = Depends(get_session)):
+    return session.exec(
+        select(Shift).where(Shift.user_id == current_user.id).order_by(Shift.shift_date)
+    ).all()
 
 app.mount("/", StaticFiles(directory="static", html=True), name="Static")
