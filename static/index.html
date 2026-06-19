@@ -42,9 +42,9 @@
   .cal-day .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 3px; }
   .cal-day .count { background: var(--orange); color: #fff; font-size: 11px; border-radius: 20px; padding: 0 6px; margin-top: 3px; }
   .dot-pending { background: var(--amber); } .dot-approved { background: var(--green); } .dot-rejected { background: var(--red); }
-  .abs-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .abs-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 10px; }
   .abs-item:last-child { border-bottom: none; }
-  .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+  .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
   .badge-pending { background: #FBEFD2; color: #9A6B14; }
   .badge-approved { background: #E4EED6; color: #4F6B2E; }
   .badge-rejected { background: #F6DEDA; color: #97382E; }
@@ -57,7 +57,7 @@
   .notif-item:last-child { border-bottom: none; }
   .notif-top { margin-bottom: 8px; }
   .notif-actions { display: flex; gap: 8px; }
-  .btn-sm { padding: 7px 14px; font-size: 13px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; }
+  .btn-sm { padding: 7px 14px; font-size: 13px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
   .btn-approve { background: var(--green); color: #fff; }
   .btn-reject { background: var(--red); color: #fff; }
   .day-detail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
@@ -321,9 +321,15 @@ async function loadEmployees() {
   el.innerHTML = "";
   for (const e of emps) {
     const row = document.createElement("div"); row.className = "abs-item";
-    row.innerHTML = `<div><strong>${e.full_name}</strong> <span style="color:#9A8F82;">(${e.username})</span></div>`;
+    row.innerHTML = `<div><strong>${e.full_name}</strong> <span style="color:#9A8F82;">(${e.username})</span></div>
+      <button class="btn-sm btn-reject" onclick="deleteEmployee(${e.id}, '${e.full_name}')">Διαγραφή</button>`;
     el.appendChild(row);
   }
+}
+async function deleteEmployee(id, name) {
+  if (!confirm("Σίγουρα θες να διαγράψεις τον/την " + name + ";\nΘα σβηστούν και οι απουσίες του/της.")) return;
+  const res = await api("/admin/employees/" + id, { method: "DELETE" });
+  if (res.ok) loadAdmin();
 }
 async function createEmployeeUI() {
   const full_name = document.getElementById("newFullName").value;

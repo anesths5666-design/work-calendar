@@ -213,4 +213,20 @@ def admin_stats(admin: User = Depends(get_current_admin),
         })
     return result
 
+# ---- Admin: διαγραφή υπαλλήλου (και των απουσιών του) ----
+@app.delete("/admin/employees/{employee_id}")
+def delete_employee(employee_id: int,
+                    admin: User = Depends(get_current_admin),
+                    session: Session = Depends(get_session)):
+    employee = session.get(User, employee_id)
+    if not employee or employee.role != "employee":
+        raise HTTPException(status_code=404, detail="Ο υπάλληλος δεν βρέθηκε")
+    # σβήσε πρώτα τις απουσίες του, μετά τον ίδιο
+    absences = session.exec(select(Absence).where(Absence.user_id == employee_id)).all()
+    for a in absences:
+        session.delete(a)
+    session.delete(employee)
+    session.commit()
+    return {"message": f"Ο υπάλληλος {employee.full_name} διαγράφηκε"}
+
 app.mount("/", StaticFiles(directory="static", html=True), name="Static")
