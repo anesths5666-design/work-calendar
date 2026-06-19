@@ -1,4 +1,6 @@
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from datetime import date
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlmodel import Session, select, SQLModel
@@ -6,11 +8,17 @@ from database import create_db_and_tables, get_session, engine
 from models import User, Absence
 from auth import hash_password, verify_password, create_token, decode_token
 
+# ---- Σχήματα αιτημάτων (όλα στην κορυφή) ----
 class RegisterRequest(SQLModel):
     username: str
     full_name: str
     password: str
 
+class AbsenceRequest(SQLModel):
+    absence_date: date
+    reason: str = ""
+
+# ---- Φτιάχνει τον admin αυτόματα στην εκκίνηση ----
 def create_default_admin():
     with Session(engine) as session:
         existing = session.exec(select(User).where(User.username == "admin")).first()
@@ -35,6 +43,7 @@ app = FastAPI(title="Ημερολόγιο Δουλειάς", lifespan=lifespan)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+# Η "πύλη χρήστη": ελέγχει το token και βρίσκει τον χρήστη
 def get_current_user(token: str = Depends(oauth2_scheme),
                      session: Session = Depends(get_session)) -> User:
     username = decode_token(token)
@@ -45,11 +54,13 @@ def get_current_user(token: str = Depends(oauth2_scheme),
         raise HTTPException(status_code=401, detail="Ο χρήστης δεν υπάρχει")
     return user
 
+# Η "πύλη admin": χτίζει πάνω στην πύλη χρήστη
 def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Μόνο ο διαχειριστής έχει πρόσβαση")
     return current_user
 
+# ---- Admin: φτιάχνει υπαλλήλους ----
 @app.post("/admin/create-employee")
 def create_employee(req: RegisterRequest,
                     admin: User = Depends(get_current_admin),
@@ -69,13 +80,14 @@ def create_employee(req: RegisterRequest,
     session.commit()
     return {"message": f"Ο υπάλληλος {req.full_name} δημιουργήθηκε"}
 
-
+# ---- Admin: βλέπει όλους τους υπαλλήλους ----
 @app.get("/admin/employees")
 def list_employees(admin: User = Depends(get_current_admin),
                    session: Session = Depends(get_session)):
     employees = session.exec(select(User).where(User.role == "employee")).all()
     return [{"id": e.id, "username": e.username, "full_name": e.full_name} for e in employees]
 
+# ---- Σύνδεση ----
 @app.post("/login")
 def login(form: OAuth2PasswordRequestForm = Depends(),
           session: Session = Depends(get_session)):
@@ -90,3 +102,115 @@ def read_me(current_user: User = Depends(get_current_user)):
     return {"username": current_user.username,
             "full_name": current_user.full_name,
             "role": current_user.role}
+
+# ---- Υπάλληλος: δηλώνει απουσία ----
+@app.post("/absences")
+def create_absence(req: AbsenceRequest,
+                   current_user: User = Depends(get_current_user),
+                   session: Session = Depends(get_session)):
+    absence = Absence(
+        user_id=current_user.id,
+        absence_date=req.absence_date,
+        reason=req.reason,
+        seen_by_admin=False,
+    )
+    session.add(absence)
+    session.commit()
+    session.refresh(absence)
+    return absence
+
+# ---- Υπάλληλος: βλέπει τις δικές του απουσίες ----
+@app.get("/absences")
+def my_absences(current_user: User = Depends(get_current_user),
+                session: Session = Depends(get_session)):
+    return session.exec(
+        select(Absence)
+        .where(Absence.user_id == current_user.id)
+        .order_by(Absence.absence_date)
+    ).all()
+
+# ---- Admin: βλέπει ΟΛΕΣ τις απουσίες (με το όνομα του υπαλλήλου) ----
+@app.get("/admin/absences")
+def all_absences(admin: User = Depends(get_current_admin),
+                 session: Session = Depends(get_session)):
+    absences = session.exec(select(Absence).order_by(Absence.absence_date)).all()
+    result = []
+    for a in absences:
+        employee = session.get(User, a.user_id)   # βρες ΠΟΙΟΣ είναι ο υπάλληλος
+        result.append({
+            "id": a.id,
+            "employee": employee.full_name if employee else "—",
+            "absence_date": a.absence_date,
+            "reason": a.reason,
+            "status": a.status,
+            "seen_by_admin": a.seen_by_admin,
+        })
+    return result
+
+# ---- Admin: οι ΝΕΕΣ απουσίες (ειδοποιήσεις) ----
+@app.get("/admin/notifications")
+def notifications(admin: User = Depends(get_current_admin),
+                  session: Session = Depends(get_session)):
+    absences = session.exec(
+        select(Absence)
+        .where(Absence.seen_by_admin == False)     # μόνο τις μη ειδωμένες!
+        .order_by(Absence.created_at.desc())
+    ).all()
+    result = []
+    for a in absences:
+        employee = session.get(User, a.user_id)
+        result.append({
+            "id": a.id,
+            "employee": employee.full_name if employee else "—",
+            "absence_date": a.absence_date,
+            "reason": a.reason,
+        })
+    return result
+
+# ---- Admin: εγκρίνει μια απουσία ----
+@app.post("/admin/absences/{absence_id}/approve")
+def approve_absence(absence_id: int,
+                    admin: User = Depends(get_current_admin),
+                    session: Session = Depends(get_session)):
+    absence = session.get(Absence, absence_id)
+    if not absence:
+        raise HTTPException(status_code=404, detail="Η απουσία δεν βρέθηκε")
+    absence.status = "approved"
+    absence.seen_by_admin = True
+    session.add(absence)
+    session.commit()
+    return {"message": "Η απουσία εγκρίθηκε"}
+
+# ---- Admin: απορρίπτει μια απουσία ----
+@app.post("/admin/absences/{absence_id}/reject")
+def reject_absence(absence_id: int,
+                   admin: User = Depends(get_current_admin),
+                   session: Session = Depends(get_session)):
+    absence = session.get(Absence, absence_id)
+    if not absence:
+        raise HTTPException(status_code=404, detail="Η απουσία δεν βρέθηκε")
+    absence.status = "rejected"
+    absence.seen_by_admin = True
+    session.add(absence)
+    session.commit()
+    return {"message": "Η απουσία απορρίφθηκε"}
+
+# ---- Admin: σύνοψη απουσιών ανά υπάλληλο ----
+@app.get("/admin/stats")
+def admin_stats(admin: User = Depends(get_current_admin),
+                session: Session = Depends(get_session)):
+    employees = session.exec(select(User).where(User.role == "employee")).all()
+    result = []
+    for e in employees:
+        absences = session.exec(select(Absence).where(Absence.user_id == e.id)).all()
+        approved = sum(1 for a in absences if a.status == "approved")
+        pending = sum(1 for a in absences if a.status == "pending")
+        result.append({
+            "employee": e.full_name,
+            "approved": approved,
+            "pending": pending,
+            "total": len(absences),
+        })
+    return result
+
+app.mount("/", StaticFiles(directory="static", html=True), name="Static")

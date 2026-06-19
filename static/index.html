@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Σωκράτης 1976 — Ημερολόγιο Απουσιών</title>
+<style>
+  :root {
+    --cream:#FBF6EE; --card:#FFFFFF; --ink:#4A4540; --muted:#9A8F82;
+    --orange:#E08A3C; --orange-dark:#C9742B; --green:#7CA05A; --red:#D9776C;
+    --amber:#E8B85C; --border:#EDE4D6;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--cream); color: var(--ink); margin: 0; }
+  .header { text-align: center; padding: 28px 16px 16px; }
+  .header h1 { margin: 0; font-size: 30px; color: var(--orange-dark); letter-spacing: .5px; }
+  .header p { margin: 4px 0 0; color: var(--muted); font-size: 15px; }
+  .container { max-width: 720px; margin: 0 auto; padding: 0 16px 40px; }
+  .card { background: var(--card); border-radius: 16px; padding: 24px; margin-bottom: 18px; box-shadow: 0 2px 12px rgba(180,150,110,.10); }
+  .login { max-width: 380px; margin: 30px auto; }
+  .login input, .mgr-input { width: 100%; padding: 11px 14px; margin: 6px 0; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: #FFFDFA; color: var(--ink); }
+  .btn { border: none; border-radius: 10px; padding: 12px 18px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: var(--orange); color: #fff; }
+  .btn-primary.full { width: 100%; margin-top: 8px; }
+  .btn-primary:hover { background: var(--orange-dark); }
+  .msg { text-align: center; min-height: 20px; margin-bottom: 8px; font-size: 14px; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .topbar .who { font-size: 16px; }
+  .btn-ghost { background: #F3EADB; color: var(--orange-dark); padding: 8px 14px; }
+  h3 { margin-top: 0; }
+  .cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .cal-head .month { font-size: 18px; font-weight: 600; }
+  .cal-nav { background: #F3EADB; color: var(--orange-dark); border: none; border-radius: 8px; width: 36px; height: 36px; font-size: 18px; cursor: pointer; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .cal-dow { text-align: center; font-size: 12px; color: var(--muted); font-weight: 600; padding-bottom: 4px; }
+  .cal-day { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; background: #FFFDFA; }
+  .cal-day:hover { border-color: var(--orange); }
+  .cal-day.empty { border: none; background: transparent; cursor: default; }
+  .cal-day.past { color: #C9C0B4; cursor: default; background: #FAF6EF; }
+  .cal-day.past:hover { border-color: var(--border); }
+  .cal-day.today { border-color: var(--orange); font-weight: 700; }
+  .cal-day .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 3px; }
+  .cal-day .count { background: var(--orange); color: #fff; font-size: 11px; border-radius: 20px; padding: 0 6px; margin-top: 3px; }
+  .dot-pending { background: var(--amber); } .dot-approved { background: var(--green); } .dot-rejected { background: var(--red); }
+  .abs-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .abs-item:last-child { border-bottom: none; }
+  .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+  .badge-pending { background: #FBEFD2; color: #9A6B14; }
+  .badge-approved { background: #E4EED6; color: #4F6B2E; }
+  .badge-rejected { background: #F6DEDA; color: #97382E; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); margin-top: 12px; justify-content: center; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .notif-count { background: var(--red); color: #fff; border-radius: 20px; font-size: 13px; padding: 1px 9px; margin-left: 6px; }
+  .notif-count:empty { display: none; }
+  .notif-item { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-top { margin-bottom: 8px; }
+  .notif-actions { display: flex; gap: 8px; }
+  .btn-sm { padding: 7px 14px; font-size: 13px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; }
+  .btn-approve { background: var(--green); color: #fff; }
+  .btn-reject { background: var(--red); color: #fff; }
+  .day-detail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .day-detail:empty { display: none; }
+  .hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 12px; }
+  .add-box { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>Σωκράτης 1976</h1>
+    <p>Ημερολόγιο Απουσιών</p>
+  </div>
+  <div class="container">
+
+    <div id="loginScreen" class="card login">
+      <div class="msg" id="loginMsg"></div>
+      <input type="text" id="username" placeholder="Όνομα χρήστη">
+      <input type="password" id="password" placeholder="Κωδικός">
+      <button class="btn btn-primary full" onclick="doLogin()">Σύνδεση</button>
+    </div>
+
+    <div id="employeeScreen" class="hidden">
+      <div class="topbar">
+        <span class="who" id="empWho"></span>
+        <button class="btn btn-ghost" onclick="logout()">Αποσύνδεση</button>
+      </div>
+      <div class="card">
+        <div class="cal-head">
+          <button class="cal-nav" onclick="changeMonth(-1)">‹</button>
+          <span class="month" id="empMonth"></span>
+          <button class="cal-nav" onclick="changeMonth(1)">›</button>
+        </div>
+        <div class="cal-grid" id="empCalendar"></div>
+        <div class="legend">
+          <span><span class="dot dot-pending"></span> Σε αναμονή</span>
+          <span><span class="dot dot-approved"></span> Εγκρίθηκε</span>
+          <span><span class="dot dot-rejected"></span> Απορρίφθηκε</span>
+        </div>
+        <div class="msg" id="empMsg"></div>
+      </div>
+      <div class="card">
+        <h3>Οι απουσίες μου</h3>
+        <div id="empList"></div>
+      </div>
+    </div>
+
+    <div id="adminScreen" class="hidden">
+      <div class="topbar">
+        <span class="who" id="admWho"></span>
+        <button class="btn btn-ghost" onclick="logout()">Αποσύνδεση</button>
+      </div>
+      <div class="card">
+        <h3>🔔 Νέες ειδοποιήσεις <span id="notifCount" class="notif-count"></span></h3>
+        <div id="notifList"></div>
+      </div>
+      <div class="card">
+        <div class="cal-head">
+          <button class="cal-nav" onclick="changeMonth(-1)">‹</button>
+          <span class="month" id="admMonth"></span>
+          <button class="cal-nav" onclick="changeMonth(1)">›</button>
+        </div>
+        <div class="cal-grid" id="admCalendar"></div>
+        <div class="hint">Κλικ σε μέρα με αριθμό για να δεις ποιος λείπει</div>
+        <div id="dayDetail" class="day-detail"></div>
+      </div>
+      <div class="card">
+        <h3>📊 Σύνοψη απουσιών</h3>
+        <div id="statsList"></div>
+      </div>
+      <div class="card">
+        <h3>👥 Υπάλληλοι</h3>
+        <div id="empMgrList"></div>
+        <div class="add-box">
+          <strong style="display:block;margin-bottom:8px;">Προσθήκη νέου υπαλλήλου</strong>
+          <input class="mgr-input" type="text" id="newFullName" placeholder="Ονοματεπώνυμο (π.χ. Γιάννης Νικολάου)">
+          <input class="mgr-input" type="text" id="newUsername" placeholder="Όνομα χρήστη (π.χ. giannis)">
+          <input class="mgr-input" type="text" id="newPassword" placeholder="Κωδικός (4+ χαρακτήρες)">
+          <button class="btn btn-primary" style="margin-top:8px;" onclick="createEmployeeUI()">Προσθήκη</button>
+          <div class="msg" id="mgrMsg"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+<script>
+const DOW = ["Δε","Τρ","Τε","Πε","Πα","Σα","Κυ"];
+const MONTHS = ["Ιανουάριος","Φεβρουάριος","Μάρτιος","Απρίλιος","Μάιος","Ιούνιος",
+                "Ιούλιος","Αύγουστος","Σεπτέμβριος","Οκτώβριος","Νοέμβριος","Δεκέμβριος"];
+const LABELS = { pending: "Σε αναμονή", approved: "Εγκρίθηκε", rejected: "Απορρίφθηκε" };
+let token = null, role = null, viewDate = new Date();
+let myAbsences = [], allAbsences = [], notifications = [];
+
+async function api(path, options = {}) {
+  options.headers = options.headers || {};
+  if (token) options.headers["Authorization"] = "Bearer " + token;
+  return fetch(path, options);
+}
+async function doLogin() {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+  const body = new URLSearchParams();
+  body.append("username", username); body.append("password", password);
+  const res = await fetch("/login", { method: "POST", body });
+  const data = await res.json();
+  if (!res.ok) { const m = document.getElementById("loginMsg"); m.style.color = "#D9776C"; m.textContent = data.detail; return; }
+  token = data.access_token; role = data.role;
+  const me = await (await api("/me")).json();
+  document.getElementById("loginScreen").classList.add("hidden");
+  if (role === "admin") {
+    document.getElementById("adminScreen").classList.remove("hidden");
+    document.getElementById("admWho").textContent = "Γεια σου, " + me.full_name;
+    loadAdmin();
+  } else {
+    document.getElementById("employeeScreen").classList.remove("hidden");
+    document.getElementById("empWho").textContent = "Γεια σου, " + me.full_name;
+    loadEmployee();
+  }
+}
+function logout() {
+  token = null; role = null;
+  document.getElementById("employeeScreen").classList.add("hidden");
+  document.getElementById("adminScreen").classList.add("hidden");
+  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("password").value = ""; document.getElementById("loginMsg").textContent = "";
+}
+function changeMonth(delta) {
+  viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1);
+  if (role === "employee") renderEmpCalendar();
+  else if (role === "admin") renderAdminCalendar();
+}
+function ymd(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function calBase(monthElId, gridId) {
+  const year = viewDate.getFullYear(), month = viewDate.getMonth();
+  document.getElementById(monthElId).textContent = MONTHS[month] + " " + year;
+  const grid = document.getElementById(gridId); grid.innerHTML = "";
+  for (const d of DOW) { const el = document.createElement("div"); el.className = "cal-dow"; el.textContent = d; grid.appendChild(el); }
+  const first = new Date(year, month, 1);
+  let startDay = first.getDay() - 1; if (startDay < 0) startDay = 6;
+  for (let i = 0; i < startDay; i++) { const el = document.createElement("div"); el.className = "cal-day empty"; grid.appendChild(el); }
+  return { year, month, grid, daysInMonth: new Date(year, month + 1, 0).getDate() };
+}
+
+/* ---- ΥΠΑΛΛΗΛΟΣ ---- */
+async function loadEmployee() {
+  myAbsences = await (await api("/absences")).json();
+  renderEmpCalendar(); renderEmpList();
+}
+function renderEmpCalendar() {
+  const { year, month, grid, daysInMonth } = calBase("empMonth", "empCalendar");
+  const today = new Date(); today.setHours(0,0,0,0);
+  const byDate = {}; for (const a of myAbsences) byDate[a.absence_date] = a.status;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const cellDate = new Date(year, month, day), dateStr = ymd(cellDate);
+    const el = document.createElement("div"); el.className = "cal-day";
+    if (cellDate < today) el.classList.add("past");
+    if (cellDate.getTime() === today.getTime()) el.classList.add("today");
+    el.innerHTML = `<span>${day}</span>`;
+    if (byDate[dateStr]) { const dot = document.createElement("span"); dot.className = "dot dot-" + byDate[dateStr]; el.appendChild(dot); }
+    if (cellDate >= today) el.onclick = () => declareAbsence(dateStr);
+    grid.appendChild(el);
+  }
+}
+async function declareAbsence(dateStr) {
+  const reason = prompt("Δήλωση απουσίας για " + dateStr + "\nΛόγος (προαιρετικά):", "");
+  if (reason === null) return;
+  const res = await api("/absences", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ absence_date: dateStr, reason }) });
+  const m = document.getElementById("empMsg");
+  if (res.ok) { m.style.color = "#7CA05A"; m.textContent = "Η απουσία στις " + dateStr + " δηλώθηκε!"; loadEmployee(); }
+  else { const data = await res.json(); m.style.color = "#D9776C"; m.textContent = data.detail || "Κάτι πήγε στραβά"; }
+}
+function renderEmpList() {
+  const list = document.getElementById("empList"); list.innerHTML = "";
+  if (myAbsences.length === 0) { list.innerHTML = '<p style="color:#9A8F82;">Δεν έχεις δηλώσει απουσίες ακόμα.</p>'; return; }
+  for (const a of myAbsences) {
+    const item = document.createElement("div"); item.className = "abs-item";
+    item.innerHTML = `<div><strong>${a.absence_date}</strong>${a.reason ? '<span style="color:#9A8F82;"> — ' + a.reason + '</span>' : ''}</div>
+      <span class="badge badge-${a.status}">${LABELS[a.status]}</span>`;
+    list.appendChild(item);
+  }
+}
+
+/* ---- ADMIN ---- */
+async function loadAdmin() {
+  notifications = await (await api("/admin/notifications")).json();
+  allAbsences = await (await api("/admin/absences")).json();
+  renderNotifications(); renderAdminCalendar();
+  loadStats(); loadEmployees();
+}
+function renderNotifications() {
+  const list = document.getElementById("notifList"), count = document.getElementById("notifCount");
+  if (notifications.length === 0) { count.textContent = ""; list.innerHTML = '<p style="color:#9A8F82;">Καμία νέα ειδοποίηση. 🎉</p>'; return; }
+  count.textContent = notifications.length; list.innerHTML = "";
+  for (const n of notifications) {
+    const item = document.createElement("div"); item.className = "notif-item";
+    item.innerHTML = `
+      <div class="notif-top"><strong>${n.employee}</strong> — ${n.absence_date}
+        ${n.reason ? '<span style="color:#9A8F82;"> (' + n.reason + ')</span>' : ''}</div>
+      <div class="notif-actions">
+        <button class="btn-sm btn-approve" onclick="decide(${n.id}, 'approve')">Έγκριση</button>
+        <button class="btn-sm btn-reject" onclick="decide(${n.id}, 'reject')">Απόρριψη</button>
+      </div>`;
+    list.appendChild(item);
+  }
+}
+async function decide(id, action) {
+  const res = await api(`/admin/absences/${id}/${action}`, { method: "POST" });
+  if (res.ok) loadAdmin();
+}
+function renderAdminCalendar() {
+  const { year, month, grid, daysInMonth } = calBase("admMonth", "admCalendar");
+  const today = new Date(); today.setHours(0,0,0,0);
+  const byDate = {};
+  for (const a of allAbsences) { (byDate[a.absence_date] = byDate[a.absence_date] || []).push(a); }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const cellDate = new Date(year, month, day), dateStr = ymd(cellDate);
+    const el = document.createElement("div"); el.className = "cal-day";
+    if (cellDate.getTime() === today.getTime()) el.classList.add("today");
+    el.innerHTML = `<span>${day}</span>`;
+    const dayList = byDate[dateStr];
+    if (dayList && dayList.length) {
+      const badge = document.createElement("span"); badge.className = "count"; badge.textContent = dayList.length;
+      el.appendChild(badge); el.onclick = () => showDay(dateStr, dayList);
+    } else { el.style.cursor = "default"; }
+    grid.appendChild(el);
+  }
+  document.getElementById("dayDetail").innerHTML = "";
+}
+function showDay(dateStr, dayList) {
+  let html = `<strong>Απουσίες στις ${dateStr}:</strong>`;
+  for (const a of dayList) {
+    html += `<div class="abs-item"><div>${a.employee}${a.reason ? '<span style="color:#9A8F82;"> — ' + a.reason + '</span>' : ''}</div>
+      <span class="badge badge-${a.status}">${LABELS[a.status]}</span></div>`;
+  }
+  document.getElementById("dayDetail").innerHTML = html;
+}
+async function loadStats() {
+  const stats = await (await api("/admin/stats")).json();
+  const el = document.getElementById("statsList");
+  if (!stats.length) { el.innerHTML = '<p style="color:#9A8F82;">Δεν υπάρχουν υπάλληλοι.</p>'; return; }
+  el.innerHTML = "";
+  for (const s of stats) {
+    const row = document.createElement("div"); row.className = "abs-item";
+    row.innerHTML = `<div><strong>${s.employee}</strong></div>
+      <div style="display:flex;gap:8px;">
+        <span class="badge badge-approved">${s.approved} εγκεκριμένες</span>
+        <span class="badge badge-pending">${s.pending} σε αναμονή</span>
+      </div>`;
+    el.appendChild(row);
+  }
+}
+async function loadEmployees() {
+  const emps = await (await api("/admin/employees")).json();
+  const el = document.getElementById("empMgrList");
+  if (!emps.length) { el.innerHTML = '<p style="color:#9A8F82;">Δεν υπάρχουν υπάλληλοι ακόμα.</p>'; return; }
+  el.innerHTML = "";
+  for (const e of emps) {
+    const row = document.createElement("div"); row.className = "abs-item";
+    row.innerHTML = `<div><strong>${e.full_name}</strong> <span style="color:#9A8F82;">(${e.username})</span></div>`;
+    el.appendChild(row);
+  }
+}
+async function createEmployeeUI() {
+  const full_name = document.getElementById("newFullName").value;
+  const username = document.getElementById("newUsername").value;
+  const password = document.getElementById("newPassword").value;
+  const msg = document.getElementById("mgrMsg");
+  if (!full_name || !username || !password) { msg.style.color = "#D9776C"; msg.textContent = "Συμπλήρωσε όλα τα πεδία"; return; }
+  const res = await api("/admin/create-employee", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, full_name, password }) });
+  const data = await res.json();
+  if (res.ok) {
+    msg.style.color = "#7CA05A"; msg.textContent = data.message;
+    document.getElementById("newFullName").value = "";
+    document.getElementById("newUsername").value = "";
+    document.getElementById("newPassword").value = "";
+    loadEmployees(); loadStats();
+  } else { msg.style.color = "#D9776C"; msg.textContent = data.detail; }
+}
+</script>
+</body>
+</html>
