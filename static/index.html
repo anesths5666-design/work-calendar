@@ -41,6 +41,7 @@
   .cal-day.today { border-color: var(--orange); font-weight: 700; }
   .cal-day .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 3px; }
   .cal-day .count { background: var(--orange); color: #fff; font-size: 11px; border-radius: 20px; padding: 0 6px; margin-top: 3px; }
+  .cal-day .shift-hours { font-size: 9px; color: #4F6B2E; line-height: 1.15; margin-top: 2px; font-weight: 600; text-align: center; }
   .dot-pending { background: var(--amber); } .dot-approved { background: var(--green); } .dot-rejected { background: var(--red); }
   .abs-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 10px; }
   .abs-item:last-child { border-bottom: none; }
@@ -108,7 +109,17 @@
           <span><span class="dot dot-approved"></span> Εγκρίθηκε</span>
           <span><span class="dot dot-rejected"></span> Απορρίφθηκε</span>
         </div>
+        <div class="hint">Οι πράσινες ώρες δείχνουν τις βάρδιές σου</div>
         <div class="msg" id="empMsg"></div>
+      </div>
+      <div class="card">
+        <h3>📅 Το πρόγραμμά μου</h3>
+        <div class="cal-head">
+          <button class="cal-nav" onclick="changeWeek(-1)">‹</button>
+          <span class="month" id="myWeekLabel"></span>
+          <button class="cal-nav" onclick="changeWeek(1)">›</button>
+        </div>
+        <div id="myWeekList"></div>
       </div>
       <div class="card">
         <h3>Οι απουσίες μου</h3>
@@ -172,12 +183,13 @@
   </div>
 <script>
 const DOW = ["Δε","Τρ","Τε","Πε","Πα","Σα","Κυ"];
+const FULLDOW = ["Δευτέρα","Τρίτη","Τετάρτη","Πέμπτη","Παρασκευή","Σάββατο","Κυριακή"];
 const MONTHS = ["Ιανουάριος","Φεβρουάριος","Μάρτιος","Απρίλιος","Μάιος","Ιούνιος",
                 "Ιούλιος","Αύγουστος","Σεπτέμβριος","Οκτώβριος","Νοέμβριος","Δεκέμβριος"];
 const SHORTMONTH = ["Ιαν","Φεβ","Μαρ","Απρ","Μάι","Ιουν","Ιουλ","Αυγ","Σεπ","Οκτ","Νοε","Δεκ"];
 const LABELS = { pending: "Σε αναμονή", approved: "Εγκρίθηκε", rejected: "Απορρίφθηκε" };
 let token = null, role = null, viewDate = new Date();
-let myAbsences = [], allAbsences = [], notifications = [], allShifts = [], employeesList = [];
+let myAbsences = [], myShifts = [], allAbsences = [], notifications = [], allShifts = [], employeesList = [];
 function getMonday(d){ const x=new Date(d); const day=x.getDay(); const diff=day===0?-6:1-day; x.setDate(x.getDate()+diff); x.setHours(0,0,0,0); return x; }
 let weekStart = getMonday(new Date());
 
@@ -216,16 +228,26 @@ function logout() {
 }
 function changeMonth(delta) {
   viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1);
-  if (role === "employee") renderEmpCalendar();
-  else if (role === "admin") renderAdminCalendar();
+  weekStart = getMonday(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1));
+  if (role === "employee") { renderEmpCalendar(); renderMyWeek(); }
+  else if (role === "admin") { renderAdminCalendar(); renderSchedule(); }
 }
 function changeWeek(delta) {
   weekStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + delta*7);
-  renderSchedule();
+  if (role === "admin") renderSchedule();
+  else if (role === "employee") renderMyWeek();
 }
 function ymd(d) {
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
   return `${y}-${m}-${day}`;
+}
+function weekLabelText(days) {
+  return "Εβδομάδα " + days[0].getDate() + " " + SHORTMONTH[days[0].getMonth()] +
+    " – " + days[6].getDate() + " " + SHORTMONTH[days[6].getMonth()] + " " + days[6].getFullYear();
+}
+function weekDays() {
+  const days = []; for (let i=0;i<7;i++){ const d=new Date(weekStart); d.setDate(weekStart.getDate()+i); days.push(d); }
+  return days;
 }
 function calBase(monthElId, gridId) {
   const year = viewDate.getFullYear(), month = viewDate.getMonth();
@@ -241,21 +263,46 @@ function calBase(monthElId, gridId) {
 /* ---- ΥΠΑΛΛΗΛΟΣ ---- */
 async function loadEmployee() {
   myAbsences = await (await api("/absences")).json();
-  renderEmpCalendar(); renderEmpList();
+  myShifts = await (await api("/shifts")).json();
+  renderEmpCalendar(); renderMyWeek(); renderEmpList();
 }
 function renderEmpCalendar() {
   const { year, month, grid, daysInMonth } = calBase("empMonth", "empCalendar");
   const today = new Date(); today.setHours(0,0,0,0);
-  const byDate = {}; for (const a of myAbsences) byDate[a.absence_date] = a.status;
+  const absByDate = {}; for (const a of myAbsences) absByDate[a.absence_date] = a.status;
+  const shiftByDate = {}; for (const s of myShifts) { (shiftByDate[s.shift_date] = shiftByDate[s.shift_date] || []).push(s); }
   for (let day = 1; day <= daysInMonth; day++) {
     const cellDate = new Date(year, month, day), dateStr = ymd(cellDate);
     const el = document.createElement("div"); el.className = "cal-day";
     if (cellDate < today) el.classList.add("past");
     if (cellDate.getTime() === today.getTime()) el.classList.add("today");
     el.innerHTML = `<span>${day}</span>`;
-    if (byDate[dateStr]) { const dot = document.createElement("span"); dot.className = "dot dot-" + byDate[dateStr]; el.appendChild(dot); }
+    if (absByDate[dateStr]) { const dot = document.createElement("span"); dot.className = "dot dot-" + absByDate[dateStr]; el.appendChild(dot); }
+    const shifts = shiftByDate[dateStr];
+    if (shifts && shifts.length) {
+      const sh = document.createElement("div"); sh.className = "shift-hours";
+      sh.innerHTML = shifts.map(s => s.start_time + "–" + s.end_time).join("<br>");
+      el.appendChild(sh);
+    }
     if (cellDate >= today) el.onclick = () => declareAbsence(dateStr);
     grid.appendChild(el);
+  }
+}
+function renderMyWeek() {
+  const days = weekDays();
+  document.getElementById("myWeekLabel").textContent = weekLabelText(days);
+  const shiftByDate = {}; for (const s of myShifts) { (shiftByDate[s.shift_date] = shiftByDate[s.shift_date] || []).push(s); }
+  const el = document.getElementById("myWeekList"); el.innerHTML = "";
+  for (let i=0;i<7;i++){
+    const dateStr = ymd(days[i]);
+    const shifts = (shiftByDate[dateStr] || []).sort((a,b)=>a.start_time.localeCompare(b.start_time));
+    let right;
+    if (shifts.length) right = shifts.map(s=>`<span class="badge badge-approved">${s.start_time}–${s.end_time}</span>`).join(" ");
+    else right = '<span style="color:#9A8F82;">Ρεπό</span>';
+    const row = document.createElement("div"); row.className = "abs-item";
+    row.innerHTML = `<div><strong>${FULLDOW[i]}</strong> <span style="color:#9A8F82;">${days[i].getDate()} ${SHORTMONTH[days[i].getMonth()]}</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">${right}</div>`;
+    el.appendChild(row);
   }
 }
 async function declareAbsence(dateStr) {
@@ -336,10 +383,8 @@ function showDay(dateStr, dayList) {
   document.getElementById("dayDetail").innerHTML = html;
 }
 function renderSchedule() {
-  const days = []; for (let i=0;i<7;i++){ const d=new Date(weekStart); d.setDate(weekStart.getDate()+i); days.push(d); }
-  document.getElementById("weekLabel").textContent =
-    "Εβδομάδα " + days[0].getDate() + " " + SHORTMONTH[days[0].getMonth()] +
-    " – " + days[6].getDate() + " " + SHORTMONTH[days[6].getMonth()] + " " + days[6].getFullYear();
+  const days = weekDays();
+  document.getElementById("weekLabel").textContent = weekLabelText(days);
   const absentSet = {}; for (const a of allAbsences) absentSet[a.employee + "|" + a.absence_date] = true;
   const shiftMap = {}; for (const s of allShifts) { const k = s.user_id + "|" + s.shift_date; (shiftMap[k] = shiftMap[k] || []).push(s); }
   let html = "<thead><tr><th class='name-col'>Υπάλληλος</th>";
