@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Σωκράτης 1976 — Ημερολόγιο Απουσιών</title>
+<title>Sokratis 1976 — Ημερολόγιο Απουσιών</title>
 <style>
   :root {
     --cream:#FBF6EE; --card:#FFFFFF; --ink:#4A4540; --muted:#9A8F82;
@@ -57,6 +57,7 @@
   .notif-item { padding: 14px 0; border-bottom: 1px solid var(--border); }
   .notif-item:last-child { border-bottom: none; }
   .notif-top { margin-bottom: 8px; }
+  .notif-reason { color: #C0392B; margin-top: 3px; }
   .notif-actions { display: flex; gap: 8px; }
   .btn-sm { padding: 7px 14px; font-size: 13px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
   .btn-approve { background: var(--green); color: #fff; }
@@ -211,7 +212,7 @@ async function doLogin() {
   document.getElementById("loginScreen").classList.add("hidden");
   if (role === "admin") {
     document.getElementById("adminScreen").classList.remove("hidden");
-    document.getElementById("admWho").textContent = "Γεια σου, " + me.full_name;
+    document.getElementById("admWho").textContent = "Γεια σου, Κωτίδη";
     loadAdmin();
   } else {
     document.getElementById("employeeScreen").classList.remove("hidden");
@@ -343,7 +344,7 @@ function renderNotifications() {
     const item = document.createElement("div"); item.className = "notif-item";
     item.innerHTML = `
       <div class="notif-top"><strong>${n.employee}</strong> — ${n.absence_date}
-        ${n.reason ? '<span style="color:#9A8F82;"> (' + n.reason + ')</span>' : ''}</div>
+        ${n.reason ? '<div class="notif-reason">(' + n.reason + ')</div>' : ''}</div>
       <div class="notif-actions">
         <button class="btn-sm btn-approve" onclick="decide(${n.id}, 'approve')">Έγκριση</button>
         <button class="btn-sm btn-reject" onclick="decide(${n.id}, 'reject')">Απόρριψη</button>
@@ -377,7 +378,7 @@ function renderAdminCalendar() {
 function showDay(dateStr, dayList) {
   let html = `<strong>Απουσίες στις ${dateStr}:</strong>`;
   for (const a of dayList) {
-    html += `<div class="abs-item"><div>${a.employee}${a.reason ? '<span style="color:#9A8F82;"> — ' + a.reason + '</span>' : ''}</div>
+    html += `<div class="abs-item"><div>${a.employee}${a.reason ? '<div class="notif-reason">(' + a.reason + ')</div>' : ''}</div>
       <span class="badge badge-${a.status}">${LABELS[a.status]}</span></div>`;
   }
   document.getElementById("dayDetail").innerHTML = html;
