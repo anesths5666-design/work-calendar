@@ -1,0 +1,5 @@
+venv/
+__psycache__/
+*.pyc
+*.db
+.git/
